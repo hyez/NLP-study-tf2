@@ -11,9 +11,9 @@ transformers==2.11.0
 sentencepiece==0.1.85
 mxnet==1.6.0
 gluonnlp==0.9.1
-sklearn==0.19.1
+sklearn
 wordcloud
 gensim
 xgboost
 wget==3.2
-tokenizers==0.8.1.rc1
+tokenizers
