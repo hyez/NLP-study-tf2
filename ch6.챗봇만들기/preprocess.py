@@ -45,7 +45,7 @@ def data_tokenizer(data):
 
 # 한글 텍스트를 토크나이징 하기 위해 형태소로 분석하는 함수 (형태소단위로 토크나이징)
 # 환경 설정 파일을 통해 사용할지 안할지 정한다.
-def prepor_like_morphlized(data):
+def prepro_like_morphlized(data):
     morph_analyzer = Okt()
     result_data = list()
     for seq in tqdm(data):
@@ -97,6 +97,10 @@ def enc_processing(value, dictionary, tokenize_as_morph=False):
     sequences_input_index = []
     sequences_length = []
 
+    # 형태소 토크나이징 사용 유무
+    if tokenize_as_morph:
+        value = prepro_like_morphlized(value)
+
     for sequence in value:
         sequence = re.sub(CHANGE_FILTER, "", sequence)
         sequence_idx = []
@@ -123,33 +127,56 @@ def enc_processing(value, dictionary, tokenize_as_morph=False):
 
 # 디코더 입력값을 만드는 함수
 def dec_output_processing(value, dictionary, tokenize_as_morph=False):
+    # 인덱스 값들을 가지고 있는
+    # 배열이다.(누적된다)
     sequences_output_index = []
+    # 하나의 디코딩 입력 되는 문장의
+    # 길이를 가지고 있다.(누적된다)
     sequences_length = []
-
+    # 형태소 토크나이징 사용 유무
+    if tokenize_as_morph:
+        value = prepro_like_morphlized(value)
+    # 한줄씩 불어온다.
     for sequence in value:
-        sequence = re.sub(CHANGE_FILTER, '', sequence)
-        sequence_idx = []
-        sequence_idx = [dictionary[STD]] + [dictionary[word] for word in sequence.split()] # 시작 토큰 넣어주기
-
-        if len(sequence_idx) > MAX_SEQUENCES:
-            sequence_idx = sequence_idx[:MAX_SEQUENCES]
-        
-        sequences_length.append(len(sequence_idx))
-        sequence_idx += (MAX_SEQUENCES - len(sequence_idx)) * [dictionary[PAD]]
-
-        sequences_output_index.append(sequence_idx)
-
+        # FILTERS = "([~.,!?\"':;)(])"
+        # 정규화를 사용하여 필터에 들어 있는
+        # 값들을 "" 으로 치환 한다.
+        sequence = re.sub(CHANGE_FILTER, "", sequence)
+        # 하나의 문장을 디코딩 할때 가지고
+        # 있기 위한 배열이다.
+        sequence_index = []
+        # 디코딩 입력의 처음에는 START가 와야 하므로
+        # 그 값을 넣어 주고 시작한다.
+        # 문장에서 스페이스 단위별로 단어를 가져와서 딕셔너리의
+        # 값인 인덱스를 넣어 준다.
+        sequence_index = [dictionary[STD]] + [dictionary[word] if word in dictionary else dictionary[UNK] for word in sequence.split()]
+        # 문장 제한 길이보다 길어질 경우 뒤에 토큰을 자르고 있다.
+        if len(sequence_index) > MAX_SEQUENCES:
+            sequence_index = sequence_index[:MAX_SEQUENCES]
+        # 하나의 문장에 길이를 넣어주고 있다.
+        sequences_length.append(len(sequence_index))
+        # max_sequence_length보다 문장 길이가
+        # 작다면 빈 부분에 PAD(0)를 넣어준다.
+        sequence_index += (MAX_SEQUENCES - len(sequence_index)) * [dictionary[PAD]]
+        # 인덱스화 되어 있는 값을
+        # sequences_output_index 넣어 준다.
+        sequences_output_index.append(sequence_index)
+    # 인덱스화된 일반 배열을 넘파이 배열로 변경한다.
+    # 이유는 텐서플로우 dataset에 넣어 주기 위한
+    # 사전 작업이다.
+    # 넘파이 배열에 인덱스화된 배열과 그 길이를 넘겨준다.
     return np.asarray(sequences_output_index), sequences_length
 
 # 디코더 타깃값을 만드는 함수
-
 def dec_target_processing(value, dictionary, tokenize_as_morph=False):
     # 인덱스 값들을 가지고 있는
     # 배열이다.(누적된다)
     sequences_target_index = []
+
     # 형태소 토크나이징 사용 유무
     if tokenize_as_morph:
         value = prepro_like_morphlized(value)
+
     # 한줄씩 불어온다.
     for sequence in value:
         # FILTERS = "([~.,!?\"':;)(])"
